@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { RealtimeTranscriber } from "assemblyai";
 import { mulaw as MuLaw } from "alawmulaw";
@@ -10,7 +9,9 @@ export const useTranscription = () => {
     const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(
         null
     );
-    const [transcriber, setTranscriber] = useState<any>(null);
+    const [transcriber, setTranscriber] = useState<RealtimeTranscriber | null>(
+        null
+    );
     const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
     const [sourceNode, setSourceNode] =
         useState<MediaStreamAudioSourceNode | null>(null);
@@ -26,7 +27,6 @@ export const useTranscription = () => {
 
             // Get the native sample rate from the audio context
             const nativeSampleRate = context.sampleRate;
-            console.log("Native sample rate:", nativeSampleRate);
 
             // Request microphone access with matching sample rate
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -52,10 +52,7 @@ export const useTranscription = () => {
                 token,
             });
 
-            console.log("transcriber:", newTranscriber);
-
             newTranscriber.on("transcript", (transcriptData) => {
-                console.log("transcribed text:", transcriptData);
                 if (transcriptData.text) {
                     setTranscript(transcriptData.text);
                 }

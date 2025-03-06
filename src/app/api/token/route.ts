@@ -13,9 +13,8 @@ export async function GET() {
 
         return NextResponse.json({ token });
     } catch (error) {
-        console.log("error:", error);
         return NextResponse.json(
-            { error: "Failed to generate token" },
+            { error: `Failed to generate token: ${error}` },
             { status: 500 }
         );
     }
