@@ -20,15 +20,11 @@ export const useTranscription = () => {
 
     const startRecording = async () => {
         try {
-            // Create audio context first (before getUserMedia)
-            // This ensures we know what sample rate to request
             const context = new AudioContext();
             setAudioContext(context);
 
-            // Get the native sample rate from the audio context
             const nativeSampleRate = context.sampleRate;
 
-            // Request microphone access with matching sample rate
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     sampleRate: nativeSampleRate,
@@ -38,16 +34,14 @@ export const useTranscription = () => {
                 },
             });
 
-            // Get the token for AssemblyAI
             const response = await fetch("/api/token");
             if (!response.ok) {
                 throw new Error("Failed to get transcription token");
             }
             const { token } = await response.json();
 
-            // Create the transcriber with the correct sample rate
             const newTranscriber = new RealtimeTranscriber({
-                sampleRate: 16000, // AssemblyAI expects 16kHz
+                sampleRate: 16000,
                 encoding: "pcm_mulaw",
                 token,
             });
@@ -61,30 +55,19 @@ export const useTranscription = () => {
             await newTranscriber.connect();
             setTranscriber(newTranscriber);
 
-            // Create source node from the stream
             const source = context.createMediaStreamSource(stream);
             setSourceNode(source);
 
-            // Use ScriptProcessorNode for direct audio processing
             const processor = context.createScriptProcessor(4096, 1, 1);
             setProcessorNode(processor);
 
-            // We'll need to resample if the native sample rate doesn't match what AssemblyAI expects
             const needsResampling = nativeSampleRate !== 16000;
-            // Since we're not using the resamplerBuffer, we can remove this block
-            // The actual resampling is handled directly in the onaudioprocess callback
-
-            // Process audio data directly
             processor.onaudioprocess = (audioProcessingEvent) => {
-                // Get the input buffer
                 const inputBuffer = audioProcessingEvent.inputBuffer;
-
-                // Get the actual audio data from channel 0 (mono)
                 const inputData = inputBuffer.getChannelData(0);
 
                 let dataToProcess: Float32Array;
 
-                // Handle resampling if needed
                 if (needsResampling) {
                     // Simple downsampling (taking every n-th sample)
                     const ratio = nativeSampleRate / 16000;
@@ -112,10 +95,7 @@ export const useTranscription = () => {
                     );
                 }
 
-                // Encode to μ-law using alawmulaw
                 const mulawData = MuLaw.encode(pcmData);
-
-                // Send the μ-law encoded buffer to the transcriber
                 newTranscriber.sendAudio(mulawData.buffer);
             };
 
@@ -123,7 +103,6 @@ export const useTranscription = () => {
             source.connect(processor);
             processor.connect(context.destination);
 
-            // We still need a MediaRecorder for state management, but we won't use its data
             const recorder = new MediaRecorder(stream);
             recorder.start();
             setMediaRecorder(recorder);
