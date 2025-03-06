@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { RealtimeTranscriber } from "assemblyai";
-import { mulaw as MuLaw } from "alawmulaw";
+import { AudioProcessor } from "@/utils/audioProcessor";
 
 export const useTranscription = () => {
     const [isRecording, setIsRecording] = useState(false);
@@ -69,75 +69,41 @@ export const useTranscription = () => {
         };
     }, [transcriber]);
 
-    // Modify startRecording to use existing transcriber
     const startRecording = async () => {
         try {
             if (!transcriber || !isConnected) {
                 throw new Error("Transcription service not ready");
             }
-    
+
             const context = new AudioContext();
             setAudioContext(context);
-    
-            const nativeSampleRate = context.sampleRate;
-            const needsResampling = nativeSampleRate !== 16000;
-    
+
+            const processor = new AudioProcessor(context.sampleRate);
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    sampleRate: nativeSampleRate,
+                    sampleRate: context.sampleRate,
                     channelCount: 1,
                     echoCancellation: true,
                     noiseSuppression: true,
                 },
             });
-    
+
             const source = context.createMediaStreamSource(stream);
             setSourceNode(source);
-    
-            const processor = context.createScriptProcessor(4096, 1, 1);
-            setProcessorNode(processor);
-    
-            // Update the processor to use the existing transcriber
-            processor.onaudioprocess = (audioProcessingEvent) => {
-                const inputBuffer = audioProcessingEvent.inputBuffer;
-                const inputData = inputBuffer.getChannelData(0);
 
-                let dataToProcess: Float32Array;
+            const scriptProcessor = context.createScriptProcessor(4096, 1, 1);
+            setProcessorNode(scriptProcessor);
 
-                if (needsResampling) {
-                    // Simple downsampling (taking every n-th sample)
-                    const ratio = nativeSampleRate / 16000;
-                    const downsampledLength = Math.floor(
-                        inputData.length / ratio
-                    );
-                    const downsampledData = new Float32Array(downsampledLength);
-
-                    for (let i = 0; i < downsampledLength; i++) {
-                        // Take every n-th sample (where n is the ratio)
-                        downsampledData[i] = inputData[Math.floor(i * ratio)];
-                    }
-
-                    dataToProcess = downsampledData;
-                } else {
-                    dataToProcess = inputData;
-                }
-
-                // Convert float32 (-1.0 to 1.0) to int16 (-32768 to 32767)
-                const pcmData = new Int16Array(dataToProcess.length);
-                for (let i = 0; i < dataToProcess.length; i++) {
-                    pcmData[i] = Math.max(
-                        -32768,
-                        Math.min(32767, Math.round(dataToProcess[i] * 32767))
-                    );
-                }
-
-                const mulawData = MuLaw.encode(pcmData);
-                transcriber.sendAudio(mulawData.buffer);
+            scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
+                const inputData =
+                    audioProcessingEvent.inputBuffer.getChannelData(0);
+                const processedBuffer = processor.processAudioData(inputData);
+                transcriber.sendAudio(processedBuffer);
             };
 
-            // Connect the nodes: source -> processor -> destination (needed for processor to work)
-            source.connect(processor);
-            processor.connect(context.destination);
+            source.connect(scriptProcessor);
+            scriptProcessor.connect(context.destination);
 
             const recorder = new MediaRecorder(stream);
             recorder.start();

@@ -2,8 +2,9 @@ interface TranscriptionDisplayProps {
     transcript: string;
 }
 
-export default function TranscriptionDisplay({ transcript }: TranscriptionDisplayProps) {
-    console.log('Transcript updated:', transcript); // Add this debug line temporarily
+export default function TranscriptionDisplay({
+    transcript,
+}: TranscriptionDisplayProps) {
     return (
         <p className="mx-auto mt-6 max-w-xl text-wrap text-lg/8 text-gray-300">
             {transcript ||
