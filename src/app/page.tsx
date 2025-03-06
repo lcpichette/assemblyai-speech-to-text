@@ -1,11 +1,18 @@
 "use client";
 
 import ErrorScreen from "@/components/ErrorScreen";
+import RecordButton from "@/components/RecordButton";
 import { useTranscription } from "@/hooks/useTranscription";
 
 export default function Home() {
-    const { isRecording, transcript, error, startRecording, stopRecording } =
-        useTranscription();
+    const {
+        isRecording,
+        transcript,
+        error,
+        startRecording,
+        stopRecording,
+        isConnected,
+    } = useTranscription();
 
     if (error) {
         return <ErrorScreen error={error} />;
@@ -21,21 +28,12 @@ export default function Home() {
                     'Click "Start Recording" and speak into your microphone and see the transcription live.'}
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
-                {!isRecording ? (
-                    <button
-                        onClick={startRecording}
-                        className="rounded-md bg-green-800 px-3.5 py-2.5 text-sm font-semibold text-gray-100 shadow-sm hover:bg-green-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-800"
-                    >
-                        Start Recording
-                    </button>
-                ) : (
-                    <button
-                        onClick={stopRecording}
-                        className="rounded-md bg-red-800 px-3.5 py-2.5 text-sm font-semibold text-gray-100 shadow-sm hover:bg-red-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-800"
-                    >
-                        Stop Recording
-                    </button>
-                )}
+                <RecordButton
+                    isRecording={isRecording}
+                    isConnected={isConnected}
+                    onStart={startRecording}
+                    onStop={stopRecording}
+                />
             </div>
             <svg
                 viewBox="0 0 1024 1024"

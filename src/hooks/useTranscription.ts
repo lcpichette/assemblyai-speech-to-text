@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { RealtimeTranscriber } from "assemblyai";
 import { mulaw as MuLaw } from "alawmulaw";
 
@@ -17,14 +17,71 @@ export const useTranscription = () => {
         useState<MediaStreamAudioSourceNode | null>(null);
     const [processorNode, setProcessorNode] =
         useState<ScriptProcessorNode | null>(null);
+    const [isConnected, setIsConnected] = useState(false);
+    const initializingRef = useRef(false);
 
+    useEffect(() => {
+        const initializeTranscriber = async () => {
+            if (transcriber || initializingRef.current) return;
+            initializingRef.current = true;
+
+            try {
+                const response = await fetch("/api/token");
+                if (!response.ok) {
+                    throw new Error("Failed to get transcription token");
+                }
+                const { token } = await response.json();
+
+                const newTranscriber = new RealtimeTranscriber({
+                    sampleRate: 16000,
+                    encoding: "pcm_mulaw",
+                    token,
+                });
+
+                newTranscriber.on("transcript", (transcriptData) => {
+                    if (transcriptData.text) {
+                        setTranscript(transcriptData.text);
+                    }
+                });
+
+                await newTranscriber.connect();
+                setTranscriber(newTranscriber);
+                setIsConnected(true);
+            } catch (err) {
+                setIsConnected(false);
+                setError(
+                    err instanceof Error
+                        ? err
+                        : new Error(`Error initializing transcriber: ${err}`)
+                );
+            } finally {
+                initializingRef.current = false;
+            }
+        };
+
+        initializeTranscriber();
+
+        return () => {
+            if (transcriber) {
+                setIsConnected(false);
+                transcriber.close();
+            }
+        };
+    }, [transcriber]);
+
+    // Modify startRecording to use existing transcriber
     const startRecording = async () => {
         try {
+            if (!transcriber || !isConnected) {
+                throw new Error("Transcription service not ready");
+            }
+    
             const context = new AudioContext();
             setAudioContext(context);
-
+    
             const nativeSampleRate = context.sampleRate;
-
+            const needsResampling = nativeSampleRate !== 16000;
+    
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     sampleRate: nativeSampleRate,
@@ -33,35 +90,14 @@ export const useTranscription = () => {
                     noiseSuppression: true,
                 },
             });
-
-            const response = await fetch("/api/token");
-            if (!response.ok) {
-                throw new Error("Failed to get transcription token");
-            }
-            const { token } = await response.json();
-
-            const newTranscriber = new RealtimeTranscriber({
-                sampleRate: 16000,
-                encoding: "pcm_mulaw",
-                token,
-            });
-
-            newTranscriber.on("transcript", (transcriptData) => {
-                if (transcriptData.text) {
-                    setTranscript(transcriptData.text);
-                }
-            });
-
-            await newTranscriber.connect();
-            setTranscriber(newTranscriber);
-
+    
             const source = context.createMediaStreamSource(stream);
             setSourceNode(source);
-
+    
             const processor = context.createScriptProcessor(4096, 1, 1);
             setProcessorNode(processor);
-
-            const needsResampling = nativeSampleRate !== 16000;
+    
+            // Update the processor to use the existing transcriber
             processor.onaudioprocess = (audioProcessingEvent) => {
                 const inputBuffer = audioProcessingEvent.inputBuffer;
                 const inputData = inputBuffer.getChannelData(0);
@@ -96,7 +132,7 @@ export const useTranscription = () => {
                 }
 
                 const mulawData = MuLaw.encode(pcmData);
-                newTranscriber.sendAudio(mulawData.buffer);
+                transcriber.sendAudio(mulawData.buffer);
             };
 
             // Connect the nodes: source -> processor -> destination (needed for processor to work)
@@ -145,5 +181,6 @@ export const useTranscription = () => {
         error,
         startRecording,
         stopRecording,
+        isConnected,
     };
 };
