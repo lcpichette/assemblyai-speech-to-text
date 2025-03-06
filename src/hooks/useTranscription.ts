@@ -120,20 +120,16 @@ export const useTranscription = () => {
     };
 
     const stopRecording = () => {
-        // Disconnect and clean up audio processing nodes
         if (processorNode && sourceNode && audioContext) {
             processorNode.disconnect();
             sourceNode.disconnect();
-            // No need to close audioContext as it might be reused
         }
 
-        // Stop and clean up media recorder
         if (mediaRecorder) {
             mediaRecorder.stop();
             mediaRecorder.stream.getTracks().forEach((track) => track.stop());
         }
 
-        // Disconnect transcriber
         if (transcriber) {
             transcriber.close();
         }
