@@ -2,16 +2,13 @@ type Props = {
     error?: Error;
 };
 
-// update this to work with generic Error objects
 const errorTitles: Record<string, string> = {
-    // HTTP Error codes
     "404": "Page not found",
     "500": "Internal server error",
     "503": "Service unavailable",
     "504": "Gateway timeout",
     "508": "Loop detected",
     "511": "Network authentication required",
-    // Common Error types
     Error: "An error occurred",
     TypeError: "Type error occurred",
     ReferenceError: "Reference error occurred",
